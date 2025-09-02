@@ -1,0 +1,582 @@
+---
+alwaysApply: true
+description: "Logging de segurança obrigatório para auditoria e monitoramento"
+---
+
+# 🔐 LOGGING DE SEGURANÇA OBRIGATÓRIO
+
+## ❌ LOGGING INADEQUADO (PROIBIDO)
+
+### Sem logging de segurança
+```python
+# ❌ PERIGOSO - Sem logging de operações críticas
+def run_maigret_search(username):
+    # Operação crítica sem logging
+    result = subprocess.run(["maigret", username], ...)
+    return result  # Sem registro da operação
+```
+
+### Logging com dados sensíveis
+```python
+# ❌ PERIGOSO - Dados sensíveis no log
+def validate_user(username, password):
+    logging.info(f"Validating user: {username} with password: {password}")
+    # Senha exposta no log!
+```
+
+### Logging insuficiente de erros
+```python
+# ❌ PERIGOSO - Tratamento inadequado de erros
+def dangerous_operation():
+    try:
+        # Operação crítica
+        run_maigret(username)
+    except Exception as e:
+        print(f"Error: {e}")  # Só print, sem logging estruturado
+```
+
+## ✅ LOGGING OBRIGATÓRIO
+
+### Configuração de logging obrigatória
+```python
+# ✅ OBRIGATÓRIO - Configuração completa de logging
+import logging
+import logging.handlers
+import sys
+from pathlib import Path
+from typing import Optional, Dict, Any
+
+def setup_security_logging(
+    log_level: int = logging.INFO,
+    log_file: str = "security.log",
+    max_bytes: int = 10*1024*1024,  # 10MB
+    backup_count: int = 5
+) -> logging.Logger:
+    """
+    Configuração obrigatória de logging de segurança
+
+    Args:
+        log_level: Nível de logging
+        log_file: Arquivo de log
+        max_bytes: Tamanho máximo do arquivo
+        backup_count: Número de backups
+
+    Returns:
+        Logger configurado para segurança
+    """
+
+    # Logger específico para segurança
+    logger = logging.getLogger('maigret_security')
+    logger.setLevel(log_level)
+
+    # Formato estruturado obrigatório
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - '
+        '[%(username)s] - %(operation)s - %(message)s'
+    )
+
+    # Handler para arquivo com rotação obrigatória
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_file,
+        maxBytes=max_bytes,
+        backupCount=backup_count,
+        encoding='utf-8'
+    )
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(log_level)
+
+    # Handler para console (apenas para desenvolvimento)
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_formatter = logging.Formatter(
+        '%(levelname)s - %(operation)s - %(message)s'
+    )
+    console_handler.setFormatter(console_formatter)
+    console_handler.setLevel(logging.WARNING)  # Só warnings e erros no console
+
+    # Adicionar handlers
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+    return logger
+
+# Logger global obrigatório
+security_logger = setup_security_logging()
+```
+
+### Logging estruturado obrigatório
+```python
+# ✅ OBRIGATÓRIO - Logging estruturado obrigatório
+from typing import Dict, Any, Optional
+import json
+
+class SecurityEvent:
+    """Estrutura obrigatória para eventos de segurança"""
+
+    def __init__(
+        self,
+        operation: str,
+        username: Optional[str] = None,
+        success: bool = True,
+        details: Optional[Dict[str, Any]] = None,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
+    ):
+        self.operation = operation
+        self.username = username or "anonymous"
+        self.success = success
+        self.details = details or {}
+        self.timestamp = int(time.time())
+        self.ip_address = ip_address
+        self.user_agent = user_agent
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Converte para dicionário obrigatório"""
+        return {
+            "operation": self.operation,
+            "username": self.username,
+            "success": self.success,
+            "details": self.details,
+            "timestamp": self.timestamp,
+            "ip_address": self.ip_address,
+            "user_agent": self.user_agent
+        }
+
+def log_security_event(
+    operation: str,
+    username: Optional[str] = None,
+    success: bool = True,
+    **kwargs
+) -> None:
+    """Logging obrigatório de eventos de segurança"""
+
+    # Criar evento estruturado
+    event = SecurityEvent(
+        operation=operation,
+        username=username,
+        success=success,
+        details=kwargs
+    )
+
+    # Adicionar contexto do Streamlit se disponível
+    try:
+        import streamlit as st
+        if hasattr(st, 'session_state'):
+            event.ip_address = getattr(st.session_state, 'client_ip', None)
+            event.user_agent = getattr(st.session_state, 'user_agent', None)
+    except ImportError:
+        pass
+
+    # Log estruturado obrigatório
+    extra = {
+        'username': event.username,
+        'operation': event.operation
+    }
+
+    if success:
+        security_logger.info(
+            f"✅ {operation} successful",
+            extra=extra
+        )
+    else:
+        security_logger.warning(
+            f"❌ {operation} failed",
+            extra=extra
+        )
+
+    # Log detalhado em debug
+    security_logger.debug(
+        f"Security event details: {json.dumps(event.to_dict(), default=str)}",
+        extra=extra
+    )
+```
+
+### Logging de validação obrigatório
+```python
+# ✅ OBRIGATÓRIO - Logging de validação obrigatório
+def validate_username_secure(username: str) -> str:
+    """Validação com logging obrigatório"""
+
+    # Log da tentativa de validação
+    log_security_event(
+        operation="username_validation",
+        username=username,
+        success=True,  # Inicialmente assume sucesso
+        input_length=len(username)
+    )
+
+    # Validações com logging detalhado
+    if not isinstance(username, str):
+        log_security_event(
+            operation="username_validation",
+            username=str(type(username)),
+            success=False,
+            error="invalid_type",
+            expected="str",
+            received=str(type(username))
+        )
+        raise ValueError("Username deve ser uma string")
+
+    if not username or not username.strip():
+        log_security_event(
+            operation="username_validation",
+            username=username or "empty",
+            success=False,
+            error="empty_username"
+        )
+        raise ValueError("Username não pode estar vazio")
+
+    username = username.strip()
+
+    # Verificar comprimento
+    if not (3 <= len(username) <= 50):
+        log_security_event(
+            operation="username_validation",
+            username=username,
+            success=False,
+            error="invalid_length",
+            length=len(username)
+        )
+        raise ValueError("Username deve ter entre 3 e 50 caracteres")
+
+    # Verificar caracteres
+    allowed_chars = set(string.ascii_letters + string.digits + '._-')
+    if not set(username).issubset(allowed_chars):
+        invalid_chars = set(username) - allowed_chars
+        log_security_event(
+            operation="username_validation",
+            username=username,
+            success=False,
+            error="invalid_characters",
+            invalid_chars=list(invalid_chars)
+        )
+        raise ValueError(f"Caracteres não permitidos: {', '.join(invalid_chars)}")
+
+    # Verificar padrões perigosos
+    dangerous_patterns = ['&&', '||', ';', '|', '`', '$', '!', '..', '/.', '\\.']
+    for pattern in dangerous_patterns:
+        if pattern in username.lower():
+            log_security_event(
+                operation="username_validation",
+                username=username,
+                success=False,
+                error="dangerous_pattern",
+                pattern=pattern
+            )
+            raise ValueError(f"Padrão proibido detectado: {pattern}")
+
+    # Log de sucesso
+    log_security_event(
+        operation="username_validation",
+        username=username,
+        success=True,
+        validation_passed=True
+    )
+
+    return username
+```
+
+### Logging de operações críticas obrigatório
+```python
+# ✅ OBRIGATÓRIO - Logging de subprocess obrigatório
+def run_maigret_secure(
+    username: str,
+    max_sites: int = 500,
+    timeout_sec: int = 30,
+    **kwargs
+) -> Dict[str, Any]:
+    """Execução com logging obrigatório"""
+
+    # Log do início da operação
+    log_security_event(
+        operation="maigret_search_start",
+        username=username,
+        success=True,
+        max_sites=max_sites,
+        timeout_sec=timeout_sec
+    )
+
+    start_time = time.time()
+
+    try:
+        # Preparar comando
+        cmd = ["maigret", username, "--json", "simple"]
+        if max_sites:
+            cmd.extend(["--top-sites", str(max_sites)])
+
+        # Log do comando (sem dados sensíveis)
+        security_logger.debug(
+            f"Command prepared: maigret {username[:3]}*** [length: {len(username)}]",
+            extra={'username': username, 'operation': 'command_prepare'}
+        )
+
+        # Executar
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout_sec + 10,
+            check=False
+        )
+
+        execution_time = time.time() - start_time
+
+        # Log do resultado
+        log_security_event(
+            operation="maigret_search_complete",
+            username=username,
+            success=result.returncode == 0,
+            returncode=result.returncode,
+            execution_time=round(execution_time, 2),
+            stdout_length=len(result.stdout) if result.stdout else 0,
+            stderr_length=len(result.stderr) if result.stderr else 0
+        )
+
+        # Log de erro detalhado se falhou
+        if result.returncode != 0:
+            security_logger.warning(
+                f"Maigret execution failed: {result.stderr[:200]}...",
+                extra={'username': username, 'operation': 'execution_error'}
+            )
+
+        return {
+            "success": result.returncode == 0,
+            "returncode": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "execution_time": execution_time
+        }
+
+    except subprocess.TimeoutExpired:
+        execution_time = time.time() - start_time
+        log_security_event(
+            operation="maigret_search_timeout",
+            username=username,
+            success=False,
+            timeout_sec=timeout_sec,
+            execution_time=round(execution_time, 2)
+        )
+        raise
+
+    except Exception as e:
+        execution_time = time.time() - start_time
+        log_security_event(
+            operation="maigret_search_error",
+            username=username,
+            success=False,
+            error_type=type(e).__name__,
+            error_message=str(e),
+            execution_time=round(execution_time, 2)
+        )
+        raise
+```
+
+### Logging de acesso e auditoria obrigatório
+```python
+# ✅ OBRIGATÓRIO - Logging de auditoria obrigatório
+def log_user_access(
+    username: str,
+    action: str,
+    resource: str,
+    success: bool = True,
+    **context
+) -> None:
+    """Logging obrigatório de acesso do usuário"""
+
+    log_security_event(
+        operation=f"user_{action}",
+        username=username,
+        success=success,
+        resource=resource,
+        **context
+    )
+
+def audit_streamlit_session() -> None:
+    """Auditoria obrigatória de sessão Streamlit"""
+
+    try:
+        import streamlit as st
+
+        # Log de inicialização de sessão
+        if 'session_id' not in st.session_state:
+            session_id = f"session_{int(time.time())}_{hash(str(time.time()))}"
+            st.session_state.session_id = session_id
+
+            log_security_event(
+                operation="session_start",
+                username="system",
+                success=True,
+                session_id=session_id
+            )
+
+        # Log de atividade da sessão
+        if 'last_activity' not in st.session_state:
+            st.session_state.last_activity = time.time()
+
+        current_time = time.time()
+        time_since_last_activity = current_time - st.session_state.last_activity
+
+        # Log se sessão ficou inativa por muito tempo
+        if time_since_last_activity > 3600:  # 1 hora
+            log_security_event(
+                operation="session_inactive",
+                username="system",
+                success=True,
+                session_id=st.session_state.get('session_id'),
+                inactive_seconds=int(time_since_last_activity)
+            )
+
+        st.session_state.last_activity = current_time
+
+    except ImportError:
+        # Streamlit não disponível
+        pass
+
+def log_configuration_change(
+    setting: str,
+    old_value: Any,
+    new_value: Any,
+    username: str = "system"
+) -> None:
+    """Logging obrigatório de mudanças de configuração"""
+
+    log_security_event(
+        operation="config_change",
+        username=username,
+        success=True,
+        setting=setting,
+        old_value=str(old_value),
+        new_value=str(new_value)
+    )
+
+def generate_security_report() -> str:
+    """Geração obrigatória de relatório de segurança"""
+
+    # Implementar análise de logs
+    # Identificar padrões suspeitos
+    # Gerar alertas de segurança
+    # Criar métricas de uso
+
+    report = []
+    report.append("# 📊 RELATÓRIO DE SEGURANÇA")
+    report.append(f"Data: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    report.append("")
+
+    # Adicionar métricas de segurança
+    # Número de validações realizadas
+    # Tentativas de injeção detectadas
+    # Operações bem-sucedidas vs falhas
+    # etc.
+
+    return "\n".join(report)
+```
+
+### Monitoramento de segurança obrigatório
+```python
+# ✅ OBRIGATÓRIO - Monitoramento de segurança obrigatório
+import threading
+import time
+from typing import Callable, List
+
+class SecurityMonitor:
+    """Monitor obrigatório de segurança"""
+
+    def __init__(self):
+        self.alerts: List[Dict[str, Any]] = []
+        self.monitoring_active = False
+        self.monitor_thread: Optional[threading.Thread] = None
+
+    def start_monitoring(self) -> None:
+        """Inicia monitoramento obrigatório"""
+        if self.monitoring_active:
+            return
+
+        self.monitoring_active = True
+        self.monitor_thread = threading.Thread(
+            target=self._monitor_loop,
+            daemon=True
+        )
+        self.monitor_thread.start()
+
+        log_security_event(
+            operation="security_monitor_start",
+            username="system",
+            success=True
+        )
+
+    def stop_monitoring(self) -> None:
+        """Para monitoramento"""
+        self.monitoring_active = False
+        if self.monitor_thread:
+            self.monitor_thread.join(timeout=5)
+
+        log_security_event(
+            operation="security_monitor_stop",
+            username="system",
+            success=True
+        )
+
+    def _monitor_loop(self) -> None:
+        """Loop de monitoramento obrigatório"""
+        while self.monitoring_active:
+            try:
+                self._check_security_alerts()
+                self._check_system_health()
+                time.sleep(60)  # Verificar a cada minuto
+            except Exception as e:
+                security_logger.error(f"Security monitor error: {e}")
+
+    def _check_security_alerts(self) -> None:
+        """Verifica alertas de segurança obrigatórios"""
+
+        # Verificar tentativas de injeção recentes
+        # Verificar uso excessivo de recursos
+        # Verificar padrões suspeitos
+        # Gerar alertas apropriados
+
+        # Exemplo: alerta se muitas validações falharam recentemente
+        recent_failures = self._count_recent_failures()
+        if recent_failures > 10:
+            log_security_event(
+                operation="security_alert",
+                username="system",
+                success=False,
+                alert_type="high_failure_rate",
+                failure_count=recent_failures
+            )
+
+    def _count_recent_failures(self) -> int:
+        """Conta falhas recentes obrigatórias"""
+        # Implementar contagem baseada nos logs
+        return 0  # Placeholder
+
+    def _check_system_health(self) -> None:
+        """Verifica saúde do sistema obrigatória"""
+        # Verificar uso de memória
+        # Verificar espaço em disco
+        # Verificar conectividade
+        # Gerar alertas se necessário
+        pass
+
+# Instância global obrigatória
+security_monitor = SecurityMonitor()
+
+def init_security_monitoring() -> None:
+    """Inicialização obrigatória do monitoramento"""
+    security_monitor.start_monitoring()
+
+    # Cleanup automático
+    import atexit
+    atexit.register(security_monitor.stop_monitoring)
+```
+
+## 📋 CHECKLIST DE LOGGING OBRIGATÓRIO
+
+- [ ] Logger de segurança configurado
+- [ ] Logging estruturado implementado
+- [ ] Eventos de segurança logados
+- [ ] Dados sensíveis protegidos
+- [ ] Tratamento de erros com logging
+- [ ] Auditoria de sessão implementada
+- [ ] Monitoramento de segurança ativo
+- [ ] Relatórios de segurança gerados
+- [ ] Logs rotacionados automaticamente

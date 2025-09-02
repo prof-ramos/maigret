@@ -1,0 +1,463 @@
+---
+alwaysApply: true
+description: "Type hints obrigatórios em todo o código para prevenir erros de runtime"
+---
+
+# 📝 TYPE HINTS OBRIGATÓRIOS
+
+## ❌ CÓDIGO SEM TYPE HINTS (PROIBIDO)
+
+### Funções sem type hints
+```python
+# ❌ PERIGOSO - Sem type hints
+def validate_username(username):
+    """Função sem type hints - pode causar erros"""
+    if len(username) < 3:
+        return False
+    return True
+
+def run_maigret_search(username, max_sites=500):
+    """Parâmetros e retorno sem tipos definidos"""
+    # Pode retornar qualquer coisa
+    # Parâmetros podem ser de qualquer tipo
+    pass
+
+def process_results(data):
+    """Sem tipo definido - pode quebrar em runtime"""
+    return data.get('results')  # Erro se data não for dict
+```
+
+### Variáveis sem tipo
+```python
+# ❌ PERIGOSO - Variáveis sem tipo definido
+results = []  # O que é armazenado aqui?
+config = {}   # Que estrutura tem este dict?
+status = None # Pode ser qualquer coisa
+```
+
+## ✅ TYPE HINTS OBRIGATÓRIOS
+
+### Imports obrigatórios
+```python
+# ✅ OBRIGATÓRIO - Imports de tipos obrigatórios
+from typing import (
+    Dict, List, Optional, Union, Any, Tuple,
+    Callable, TypeVar, Generic, Literal
+)
+
+# Para compatibilidade com Python < 3.10
+from __future__ import annotations
+```
+
+### Funções com type hints completos
+```python
+# ✅ OBRIGATÓRIO - Type hints completos obrigatórios
+def validate_username_secure(username: str) -> str:
+    """
+    Validação robusta de username com sanitização completa
+
+    Args:
+        username (str): Username a ser validado
+
+    Returns:
+        str: Username sanitizado e validado
+
+    Raises:
+        ValueError: Se username for inválido ou inseguro
+    """
+    # Implementação com type hints obrigatórios
+    pass
+
+def run_maigret_secure(
+    username: str,
+    max_sites: int = 500,
+    timeout_sec: int = 30,
+    enable_recursion: bool = True,
+    id_type: str = "username",
+    tags: Optional[List[str]] = None
+) -> Dict[str, Any]:
+    """
+    Execução segura do Maigret com sanitização completa
+
+    Args:
+        username: Username validado e sanitizado
+        max_sites: Máximo de sites a verificar
+        timeout_sec: Timeout em segundos
+        enable_recursion: Habilitar busca recursiva
+        id_type: Tipo de ID a buscar
+        tags: Lista de tags para filtrar sites
+
+    Returns:
+        Dict com resultado da execução
+
+    Raises:
+        ValueError: Se parâmetros forem inválidos
+        subprocess.TimeoutExpired: Se timeout for atingido
+    """
+    # Implementação com type hints obrigatórios
+    pass
+
+def validate_and_display_username(username: str) -> Tuple[bool, str, str]:
+    """
+    Valida username e retorna resultado para exibição no Streamlit
+
+    Args:
+        username: Username a ser validado
+
+    Returns:
+        Tuple[bool, str, str]: (is_valid, clean_username, error_message)
+    """
+    # Implementação com type hints obrigatórios
+    pass
+```
+
+### Estruturas de dados com tipos definidos
+```python
+# ✅ OBRIGATÓRIO - Tipos para estruturas de dados
+from typing import TypedDict, NamedTuple
+
+class SearchResult(TypedDict):
+    """Estrutura obrigatória para resultados de busca"""
+    nome: str
+    url: str
+    status: str
+    confiabilidade: int
+    dados_extras: Dict[str, Any]
+    parseado: bool
+
+class MaigretExecutionResult(TypedDict):
+    """Estrutura obrigatória para resultados de execução"""
+    success: bool
+    returncode: int
+    stdout: str
+    stderr: str
+    username: str
+    timestamp: int
+    timeout_used: int
+    processed_results: List[SearchResult]
+    sites_found: int
+    error: Optional[str]
+
+class SearchConfig(NamedTuple):
+    """Configuração de busca com tipos obrigatórios"""
+    timeout: int
+    max_sites: int
+    max_connections: int
+    enable_recursion: bool
+    id_type: Literal["username", "yandex_public_id", "gaia_id", "vk_id"]
+    tags: Optional[List[str]]
+
+# Uso obrigatório
+def process_maigret_results(raw_data: Dict[str, Any]) -> List[SearchResult]:
+    """Processa resultados brutos do Maigret"""
+    processed_results: List[SearchResult] = []
+
+    if isinstance(raw_data, dict):
+        for site_name, site_data in raw_data.items():
+            if isinstance(site_data, dict):
+                result: SearchResult = {
+                    "nome": site_name,
+                    "url": site_data.get("url_user", ""),
+                    "status": "encontrado" if site_data.get("status", {}).get("status") == "CLAIMED" else "não encontrado",
+                    "confiabilidade": 85 if site_data.get("status", {}).get("status") == "CLAIMED" else 0,
+                    "dados_extras": site_data.get("ids", {}),
+                    "parseado": site_data.get("is_parsed", False)
+                }
+                processed_results.append(result)
+
+    return processed_results
+```
+
+### Variáveis com tipos explícitos
+```python
+# ✅ OBRIGATÓRIO - Variáveis com tipos obrigatórios
+from typing import List, Dict, Optional
+
+def init_session_state() -> None:
+    """Inicializa o estado da sessão com tipos obrigatórios"""
+
+    # Estado de busca
+    search_history: List[Dict[str, Any]] = []
+    st.session_state.search_history = search_history
+
+    current_results: Optional[List[SearchResult]] = None
+    st.session_state.current_results = current_results
+
+    search_in_progress: bool = False
+    st.session_state.search_in_progress = search_in_progress
+
+    # Configurações com tipos específicos
+    timeout: int = 30
+    max_sites: int = 500
+    debug_mode: bool = False
+
+    st.session_state.timeout = timeout
+    st.session_state.max_sites = max_sites
+    st.session_state.debug_mode = debug_mode
+
+def safe_get_session_value(key: str, default: Any = None) -> Any:
+    """Obtém valor do session_state com tipo seguro"""
+    try:
+        return st.session_state.get(key, default)
+    except Exception:
+        return default
+
+def get_search_config() -> SearchConfig:
+    """Obtém configuração de busca com tipos obrigatórios"""
+    return SearchConfig(
+        timeout=safe_get_session_value('timeout', 30),
+        max_sites=safe_get_session_value('max_sites', 500),
+        max_connections=safe_get_session_value('max_connections', 50),
+        enable_recursion=safe_get_session_value('enable_recursion', True),
+        id_type=safe_get_session_value('id_type', 'username'),
+        tags=safe_get_session_value('tags')
+    )
+```
+
+### Callbacks e funções de alta ordem
+```python
+# ✅ OBRIGATÓRIO - Type hints para callbacks
+from typing import Callable, Protocol
+
+class SearchCallback(Protocol):
+    """Protocolo obrigatório para callbacks de busca"""
+    def __call__(self, username: str, result: MaigretExecutionResult) -> None:
+        ...
+
+def register_search_callback(callback: SearchCallback) -> None:
+    """Registra callback de busca com tipo obrigatório"""
+    # Implementação
+    pass
+
+def perform_search_with_callback(
+    username: str,
+    callback: Optional[SearchCallback] = None
+) -> MaigretExecutionResult:
+    """Executa busca com callback opcional"""
+    result = run_maigret_secure(username)
+
+    if callback is not None:
+        callback(username, result)
+
+    return result
+```
+
+### Exceções com tipos específicos
+```python
+# ✅ OBRIGATÓRIO - Exceções com tipos obrigatórios
+from typing import NoReturn
+
+class ValidationError(ValueError):
+    """Erro de validação com informações estruturadas"""
+
+    def __init__(self, message: str, field: str, value: Any) -> None:
+        super().__init__(message)
+        self.field: str = field
+        self.value: Any = value
+
+class SearchError(Exception):
+    """Erro de busca com contexto"""
+
+    def __init__(
+        self,
+        message: str,
+        username: str,
+        returncode: Optional[int] = None,
+        stderr: Optional[str] = None
+    ) -> None:
+        super().__init__(message)
+        self.username: str = username
+        self.returncode: Optional[int] = returncode
+        self.stderr: Optional[str] = None
+
+def raise_validation_error(field: str, value: Any, reason: str) -> NoReturn:
+    """Levanta erro de validação com tipo obrigatório"""
+    message = f"Validation failed for {field}: {reason}"
+    raise ValidationError(message, field, value)
+
+def handle_search_error(error: Exception, username: str) -> SearchError:
+    """Converte exceções em SearchError com tipos obrigatórios"""
+    if isinstance(error, subprocess.TimeoutExpired):
+        return SearchError(
+            f"Search timeout for username: {username}",
+            username=username
+        )
+    elif isinstance(error, ValidationError):
+        return SearchError(
+            f"Validation error: {str(error)}",
+            username=username
+        )
+    else:
+        return SearchError(
+            f"Unexpected error: {str(error)}",
+            username=username
+        )
+```
+
+### Generics para reutilização
+```python
+# ✅ OBRIGATÓRIO - Generics para código reutilizável
+from typing import TypeVar, Generic, Iterable
+
+T = TypeVar('T')
+K = TypeVar('K')
+V = TypeVar('V')
+
+class SafeDict(Generic[K, V]):
+    """Dicionário seguro com validação obrigatória"""
+
+    def __init__(self) -> None:
+        self._data: Dict[K, V] = {}
+
+    def get_safe(self, key: K, default: V) -> V:
+        """Obtém valor com tipo seguro obrigatório"""
+        return self._data.get(key, default)
+
+    def set_safe(self, key: K, value: V) -> None:
+        """Define valor com validação obrigatória"""
+        if not isinstance(key, (str, int)):
+            raise TypeError(f"Key must be str or int, got {type(key)}")
+        self._data[key] = value
+
+def filter_by_type(items: Iterable[T], item_type: type) -> List[T]:
+    """Filtra itens por tipo com generics obrigatórios"""
+    return [item for item in items if isinstance(item, item_type)]
+
+def safe_map(func: Callable[[T], V], items: Iterable[T]) -> List[V]:
+    """Mapeia função sobre itens com tipos obrigatórios"""
+    result: List[V] = []
+    for item in items:
+        try:
+            result.append(func(item))
+        except Exception:
+            # Log error mas continua processamento
+            continue
+    return result
+```
+
+## 🛠️ FERRAMENTAS DE VERIFICAÇÃO
+
+### mypy obrigatório
+```ini
+# mypy.ini - Configuração obrigatória
+[mypy]
+python_version = 3.11
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+# Módulos específicos
+[mypy-streamlit.*]
+ignore_missing_imports = true
+```
+
+### Script de verificação obrigatório
+```python
+# scripts/type_check.py - Verificação obrigatória
+#!/usr/bin/env python3
+"""
+Script obrigatório para verificação de tipos
+"""
+
+import subprocess
+import sys
+from pathlib import Path
+
+def run_mypy_check() -> bool:
+    """Executa verificação mypy obrigatória"""
+    print("🔍 Executando verificação de tipos (mypy)...")
+
+    try:
+        result = subprocess.run(
+            ["mypy", "app.py", "validation.py", "maigret_service.py"],
+            capture_output=True,
+            text=True
+        )
+
+        if result.returncode == 0:
+            print("✅ Todos os tipos estão corretos!")
+            return True
+        else:
+            print("❌ Erros de tipo encontrados:")
+            print(result.stdout)
+            if result.stderr:
+                print("Erros:", result.stderr)
+            return False
+
+    except FileNotFoundError:
+        print("❌ mypy não encontrado. Instale com: pip install mypy")
+        return False
+
+def run_type_coverage() -> bool:
+    """Verifica cobertura de tipos obrigatória"""
+    print("📊 Verificando cobertura de tipos...")
+
+    try:
+        from mypy import api
+        result = api.run([
+            "--config-file", "mypy.ini",
+            "--show-traceback",
+            "."
+        ])
+
+        if result[2] == 0:  # Código de saída
+            print("✅ Cobertura de tipos adequada!")
+            return True
+        else:
+            print("❌ Cobertura de tipos insuficiente:")
+            print(result[0])  # stdout
+            return False
+
+    except ImportError:
+        print("❌ mypy não disponível para análise de cobertura")
+        return False
+
+def main() -> int:
+    """Função principal obrigatória"""
+
+    print("🔧 VERIFICAÇÃO DE TIPOS OBRIGATÓRIA")
+    print("=" * 40)
+
+    # Verificações obrigatórias
+    checks = [
+        run_mypy_check,
+        run_type_coverage
+    ]
+
+    all_passed = True
+    for check in checks:
+        if not check():
+            all_passed = False
+
+    if all_passed:
+        print("\n✅ TODAS AS VERIFICAÇÕES DE TIPO PASSARAM!")
+        return 0
+    else:
+        print("\n❌ ALGUMAS VERIFICAÇÕES DE TIPO FALHARAM!")
+        print("💡 Corrija os erros de tipo antes de continuar.")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+## 📋 CHECKLIST DE TYPE HINTS OBRIGATÓRIOS
+
+- [ ] Imports de tipos obrigatórios adicionados
+- [ ] Todas as funções têm type hints completos
+- [ ] Estruturas de dados usam TypedDict/NamedTuple
+- [ ] Variáveis têm tipos explícitos
+- [ ] Exceções customizadas têm tipos definidos
+- [ ] Generics usados para código reutilizável
+- [ ] mypy configurado e executando sem erros
+- [ ] Script de verificação implementado
+- [ ] Type hints validados antes de commit

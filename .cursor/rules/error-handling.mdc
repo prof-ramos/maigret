@@ -1,0 +1,527 @@
+---
+alwaysApply: true
+description: "Tratamento robusto de erros obrigatório em todo o código"
+---
+
+# 🚨 TRATAMENTO ROBUSTO DE ERROS
+
+## ❌ ANTI-PATTERNS PROIBIDOS
+
+### Try-catch vazio
+```python
+# ❌ PERIGOSO - Try-catch vazio
+try:
+    dangerous_operation()
+except:
+    pass  # Ignora todos os erros silenciosamente
+```
+
+### Print em vez de logging estruturado
+```python
+# ❌ PERIGOSO - Print em vez de logging
+try:
+    result = risky_operation()
+except Exception as e:
+    print(f"Error: {e}")  # Não rastreável, não estruturado
+```
+
+### Exceções genéricas demais
+```python
+# ❌ PERIGOSO - Captura Exception genérica
+try:
+    # Código complexo
+    pass
+except Exception:  # Captura tudo indiscriminadamente
+    handle_error()
+```
+
+### Sem tratamento específico de tipos de erro
+```python
+# ❌ PERIGOSO - Sem distinção de tipos de erro
+def process_data(data):
+    try:
+        return int(data)  # Pode falhar
+    except:  # Não especifica o tipo de erro
+        return None
+```
+
+## ✅ PRÁTICAS OBRIGATÓRIAS
+
+### Tratamento específico de exceções
+```python
+# ✅ OBRIGATÓRIO - Tratamento específico e estruturado
+import logging
+from typing import Union, Optional, Any
+
+def validate_username_secure(username: str) -> str:
+    """
+    Validação com tratamento robusto de erros
+    """
+    try:
+        # Validação de tipo
+        if not isinstance(username, str):
+            raise TypeError(f"Username deve ser string, recebeu {type(username)}")
+
+        # Validação de conteúdo
+        if not username or not username.strip():
+            raise ValueError("Username não pode estar vazio")
+
+        username = username.strip()
+
+        # Validação de comprimento
+        if not (3 <= len(username) <= 50):
+            raise ValueError(f"Username deve ter entre 3-50 caracteres, tem {len(username)}")
+
+        # Validação de caracteres
+        allowed_chars = set(string.ascii_letters + string.digits + '._-')
+        if not set(username).issubset(allowed_chars):
+            invalid_chars = set(username) - allowed_chars
+            raise ValueError(f"Caracteres não permitidos: {', '.join(invalid_chars)}")
+
+        # Validação de padrões perigosos
+        dangerous_patterns = ['&&', '||', ';', '|', '`', '$', '!', '..']
+        for pattern in dangerous_patterns:
+            if pattern in username.lower():
+                raise ValueError(f"Padrão perigoso detectado: {pattern}")
+
+        return username
+
+    except TypeError as e:
+        logging.warning(f"Tipo inválido em validate_username: {e}")
+        raise ValueError("Tipo de entrada inválido") from e
+
+    except ValueError as e:
+        logging.info(f"Validação falhou para username: {e}")
+        raise  # Re-raise com contexto original
+
+    except Exception as e:
+        logging.error(f"Erro inesperado em validate_username: {e}")
+        raise RuntimeError("Erro interno de validação") from e
+```
+
+### Tratamento de subprocess com contexto específico
+```python
+# ✅ OBRIGATÓRIO - Tratamento específico de subprocess
+def run_maigret_secure(
+    username: str,
+    timeout_sec: int = 30,
+    **kwargs
+) -> Dict[str, Any]:
+    """
+    Execução segura com tratamento robusto de erros
+    """
+
+    # Validação de entrada primeiro
+    try:
+        clean_username = validate_username_secure(username)
+    except ValueError as e:
+        logging.warning(f"Validação falhou para username '{username[:10]}***': {e}")
+        return {
+            "success": False,
+            "error": f"Validação falhou: {str(e)}",
+            "error_type": "validation_error"
+        }
+
+    # Preparar comando
+    try:
+        cmd = ["maigret", clean_username, "--json", "simple"]
+        if kwargs.get('max_sites'):
+            cmd.extend(["--top-sites", str(kwargs['max_sites'])])
+
+        logging.debug(f"Comando preparado: {' '.join(cmd[:3])} [length: {len(clean_username)}]")
+
+    except Exception as e:
+        logging.error(f"Erro ao preparar comando: {e}")
+        return {
+            "success": False,
+            "error": "Erro interno na preparação do comando",
+            "error_type": "command_preparation_error"
+        }
+
+    # Executar comando com tratamento específico
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout_sec + 10,
+            check=False,
+            env={
+                "PATH": "/usr/local/bin:/usr/bin:/bin",
+                "LANG": "C.UTF-8",
+                "HOME": "/tmp"
+            },
+            cwd="/tmp"
+        )
+
+        # Processar resultado baseado no código de saída
+        if result.returncode == 0:
+            logging.info(f"Maigret executado com sucesso para username de {len(clean_username)} caracteres")
+            return {
+                "success": True,
+                "returncode": result.returncode,
+                "stdout": result.stdout[:10000],
+                "stderr": result.stderr[:5000] if result.stderr else "",
+                "execution_time": time.time() - start_time
+            }
+
+        else:
+            logging.warning(f"Maigret falhou com código {result.returncode}: {result.stderr[:200]}...")
+            return {
+                "success": False,
+                "returncode": result.returncode,
+                "error": f"Execução falhou: {result.stderr[:500] if result.stderr else 'Erro desconhecido'}",
+                "error_type": "execution_error",
+                "stdout": result.stdout[:10000],
+                "stderr": result.stderr[:5000] if result.stderr else ""
+            }
+
+    except subprocess.TimeoutExpired as e:
+        logging.error(f"Timeout na execução do Maigret ({timeout_sec}s): {e}")
+        return {
+            "success": False,
+            "error": f"Timeout após {timeout_sec} segundos",
+            "error_type": "timeout_error"
+        }
+
+    except FileNotFoundError as e:
+        logging.error(f"Maigret não encontrado: {e}")
+        return {
+            "success": False,
+            "error": "Ferramenta Maigret não está instalada ou não está no PATH",
+            "error_type": "missing_dependency_error"
+        }
+
+    except PermissionError as e:
+        logging.error(f"Erro de permissão ao executar Maigret: {e}")
+        return {
+            "success": False,
+            "error": "Erro de permissão ao executar a ferramenta",
+            "error_type": "permission_error"
+        }
+
+    except OSError as e:
+        logging.error(f"Erro de sistema operacional: {e}")
+        return {
+            "success": False,
+            "error": f"Erro do sistema: {str(e)}",
+            "error_type": "system_error"
+        }
+
+    except Exception as e:
+        logging.error(f"Erro inesperado na execução: {e}")
+        return {
+            "success": False,
+            "error": "Erro interno inesperado",
+            "error_type": "unexpected_error"
+        }
+```
+
+### Tratamento de erros em Streamlit
+```python
+# ✅ OBRIGATÓRIO - Tratamento robusto em Streamlit
+def handle_search_with_error_management():
+    """
+    Gerencia busca com tratamento robusto de erros
+    """
+
+    # Container para mensagens de erro
+    error_container = st.container()
+
+    try:
+        # Validação de entrada
+        username_input = st.text_input(
+            "Username para investigação:",
+            placeholder="Digite o username...",
+            help="Use apenas letras, números, pontos, hífens e underscores"
+        )
+
+        if not username_input:
+            return
+
+        # Validação robusta
+        is_valid, clean_username, error_msg = validate_and_display_username(username_input)
+
+        if not is_valid:
+            with error_container:
+                st.error(f"❌ Erro de validação: {error_msg}")
+                logging.info(f"Validação falhou para input: {username_input[:10]}***")
+            return
+
+        # Configuração de busca
+        config = get_search_configuration()
+
+        # Execução com timeout e tratamento de erros
+        with st.spinner("🔍 Executando busca..."):
+            result = run_maigret_secure(
+                username=clean_username,
+                timeout_sec=config['timeout'],
+                max_sites=config['max_sites']
+            )
+
+        # Processamento do resultado baseado no tipo de erro
+        if result.get('success'):
+            display_success_results(result)
+            logging.info(f"Busca bem-sucedida para username: {clean_username[:10]}***")
+
+        elif result.get('error_type') == 'validation_error':
+            with error_container:
+                st.error(f"❌ {result['error']}")
+                st.info("💡 Verifique se o username está correto")
+
+        elif result.get('error_type') == 'timeout_error':
+            with error_container:
+                st.error(f"❌ {result['error']}")
+                st.info("💡 Tente reduzir o timeout ou número de sites")
+
+        elif result.get('error_type') == 'missing_dependency_error':
+            with error_container:
+                st.error(f"❌ {result['error']}")
+                st.info("💡 Contate o administrador do sistema")
+
+        elif result.get('error_type') == 'permission_error':
+            with error_container:
+                st.error(f"❌ {result['error']}")
+                st.info("💡 Verifique as permissões do sistema")
+
+        else:
+            with error_container:
+                st.error(f"❌ Erro na execução: {result.get('error', 'Erro desconhecido')}")
+
+    except ValueError as e:
+        with error_container:
+            st.error(f"❌ Erro de validação: {str(e)}")
+        logging.warning(f"ValueError em handle_search: {e}")
+
+    except subprocess.TimeoutExpired as e:
+        with error_container:
+            st.error("❌ Timeout: A busca demorou mais que o esperado")
+        logging.error(f"TimeoutExpired em handle_search: {e}")
+
+    except ConnectionError as e:
+        with error_container:
+            st.error("❌ Erro de conexão: Verifique sua conexão com a internet")
+        logging.error(f"ConnectionError em handle_search: {e}")
+
+    except Exception as e:
+        with error_container:
+            st.error("❌ Erro inesperado durante a busca")
+            st.info("💡 Se o problema persistir, contate o suporte")
+        logging.error(f"Unexpected error em handle_search: {e}")
+
+        # Modo debug opcional
+        if st.session_state.get('debug_mode', False):
+            with st.expander("🔧 Detalhes técnicos (modo debug)"):
+                st.exception(e)
+
+def get_search_configuration() -> Dict[str, Any]:
+    """Obtém configuração com tratamento de erros"""
+
+    try:
+        with st.sidebar:
+            st.subheader("⚙️ Configurações de Busca")
+
+            config = {
+                'timeout': st.slider(
+                    "Timeout (segundos):",
+                    5, 300, 30,
+                    help="Tempo limite por site"
+                ),
+                'max_sites': st.slider(
+                    "Máximo de sites:",
+                    1, 1000, 100,
+                    help="Número máximo de sites para verificar"
+                ),
+                'verbose': st.checkbox(
+                    "Modo verboso",
+                    False,
+                    help="Mostrar mais detalhes durante a execução"
+                )
+            }
+
+            # Validação das configurações
+            if config['timeout'] < 5:
+                st.warning("⚠️ Timeout muito baixo pode causar falhas")
+            if config['max_sites'] > 500:
+                st.warning("⚠️ Muitos sites podem demorar muito tempo")
+
+            return config
+
+    except Exception as e:
+        logging.error(f"Erro ao obter configuração: {e}")
+        # Retornar configuração padrão em caso de erro
+        return {
+            'timeout': 30,
+            'max_sites': 100,
+            'verbose': False
+        }
+```
+
+### Context managers para tratamento de recursos
+```python
+# ✅ OBRIGATÓRIO - Context managers para recursos
+from contextlib import contextmanager
+import tempfile
+import os
+
+@contextmanager
+def safe_temp_directory():
+    """Context manager para diretório temporário seguro"""
+
+    temp_dir = None
+    try:
+        temp_dir = tempfile.mkdtemp(prefix="maigret_", suffix="_search")
+        os.chmod(temp_dir, 0o700)  # Apenas owner pode acessar
+
+        logging.debug(f"Diretório temporário criado: {temp_dir}")
+        yield temp_dir
+
+    except OSError as e:
+        logging.error(f"Erro ao criar diretório temporário: {e}")
+        raise RuntimeError("Não foi possível criar diretório temporário") from e
+
+    except Exception as e:
+        logging.error(f"Erro inesperado com diretório temporário: {e}")
+        raise
+
+    finally:
+        # Cleanup sempre executado
+        if temp_dir and os.path.exists(temp_dir):
+            try:
+                import shutil
+                shutil.rmtree(temp_dir)
+                logging.debug(f"Diretório temporário removido: {temp_dir}")
+            except Exception as e:
+                logging.warning(f"Erro ao remover diretório temporário {temp_dir}: {e}")
+
+def run_maigret_with_temp_dir(username: str, **kwargs) -> Dict[str, Any]:
+    """Execução usando context manager para diretório temporário"""
+
+    with safe_temp_directory() as temp_dir:
+        try:
+            # Usar diretório temporário para arquivos de saída
+            output_file = os.path.join(temp_dir, f"maigret_{username}_{int(time.time())}.json")
+
+            cmd = ["maigret", username, "--json", "simple", "--output", output_file]
+
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=kwargs.get('timeout', 30) + 10,
+                check=False,
+                cwd=temp_dir
+            )
+
+            # Processar resultado
+            if result.returncode == 0 and os.path.exists(output_file):
+                with open(output_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+
+                return {
+                    "success": True,
+                    "data": data,
+                    "sites_found": len(data.get("sites", {}))
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": result.stderr or "Execução falhou",
+                    "returncode": result.returncode
+                }
+
+        except json.JSONDecodeError as e:
+            logging.error(f"Erro ao parsear resultado JSON: {e}")
+            return {
+                "success": False,
+                "error": "Erro ao processar resultado da busca"
+            }
+
+        except Exception as e:
+            logging.error(f"Erro inesperado na execução: {e}")
+            return {
+                "success": False,
+                "error": "Erro interno na execução"
+            }
+```
+
+### Logging estruturado de erros
+```python
+# ✅ OBRIGATÓRIO - Logging estruturado de erros
+def log_error_with_context(
+    error: Exception,
+    operation: str,
+    username: Optional[str] = None,
+    additional_context: Optional[Dict[str, Any]] = None
+) -> None:
+    """
+    Logging estruturado de erros com contexto completo
+    """
+
+    error_context = {
+        "operation": operation,
+        "error_type": type(error).__name__,
+        "error_message": str(error),
+        "username": username[:10] + "***" if username else None,
+        "timestamp": int(time.time())
+    }
+
+    if additional_context:
+        error_context.update(additional_context)
+
+    # Log estruturado
+    logging.error(
+        f"Error in {operation}: {type(error).__name__}: {str(error)}",
+        extra=error_context
+    )
+
+    # Log do stack trace apenas em debug
+    if logging.getLogger().isEnabledFor(logging.DEBUG):
+        logging.debug(f"Stack trace for {operation}:", exc_info=True)
+
+def handle_and_log_error(
+    error: Exception,
+    operation: str,
+    username: Optional[str] = None,
+    show_user_message: bool = True
+) -> str:
+    """
+    Trata e loga erro, retornando mensagem apropriada para usuário
+    """
+
+    # Log do erro
+    log_error_with_context(error, operation, username)
+
+    # Determinar mensagem apropriada para usuário
+    if isinstance(error, ValueError):
+        if "Username" in str(error):
+            return "Nome de usuário inválido. Use apenas letras, números, pontos, hífens e underscores."
+        else:
+            return "Dados de entrada inválidos."
+
+    elif isinstance(error, subprocess.TimeoutExpired):
+        return "A busca demorou muito tempo. Tente reduzir o número de sites ou aumentar o timeout."
+
+    elif isinstance(error, ConnectionError):
+        return "Erro de conexão. Verifique sua conexão com a internet."
+
+    elif isinstance(error, PermissionError):
+        return "Erro de permissão. Contate o administrador do sistema."
+
+    elif isinstance(error, FileNotFoundError):
+        return "Ferramenta necessária não encontrada. Contate o administrador."
+
+    else:
+        return "Erro interno inesperado. Se o problema persistir, contate o suporte."
+```
+
+## 📋 CHECKLIST DE TRATAMENTO DE ERROS
+
+- [ ] Exceções específicas capturadas (não Exception genérica)
+- [ ] Logging estruturado implementado
+- [ ] Mensagens apropriadas para usuário
+- [ ] Context managers usados para recursos
+- [ ] Tratamento de cleanup implementado
+- [ ] Modo debug opcional disponível
+- [ ] Testes de cenários de erro implementados
+- [ ] Documentação de tipos de erro mantida

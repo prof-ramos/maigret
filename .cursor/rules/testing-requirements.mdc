@@ -1,0 +1,435 @@
+---
+alwaysApply: true
+description: "Garantir implementação obrigatória de testes e cobertura mínima"
+---
+
+# 🧪 TESTES OBRIGATÓRIOS E COBERTURA MÍNIMA
+
+## ❌ CÓDIGO SEM TESTES (PROIBIDO)
+
+### Funções críticas sem testes
+```python
+# ❌ PERIGOSO - Função crítica sem testes
+def run_maigret_secure(username, **kwargs):
+    """Esta função é crítica mas não tem testes"""
+    # 500+ linhas de código sem cobertura de testes
+    # Pode conter vulnerabilidades não detectadas
+    pass
+
+def validate_username(username):
+    """Validação básica sem testes de segurança"""
+    # Pode ser facilmente burlada
+    pass
+```
+
+## ✅ ESTRUTURA DE TESTES OBRIGATÓRIA
+
+### Estrutura de diretórios obrigatória
+```
+tests/
+├── __init__.py
+├── conftest.py                 # Fixtures globais
+├── unit/                      # Testes unitários
+│   ├── __init__.py
+│   ├── test_validation.py     # Testes de validação
+│   ├── test_security.py       # Testes de segurança
+│   └── test_functions.py      # Testes de funções
+├── integration/               # Testes de integração
+│   ├── __init__.py
+│   ├── test_streamlit_app.py  # Testes da interface
+│   └── test_maigret_integration.py
+├── security/                  # Testes de segurança específicos
+│   ├── __init__.py
+│   └── test_subprocess_security.py
+└── fixtures/                  # Dados de teste
+    ├── sample_results.json
+    └── mock_responses.json
+```
+
+### Configuração pytest obrigatória
+```ini
+# pytest.ini - Configuração obrigatória
+[tool:pytest]
+testpaths = tests
+python_files = test_*.py *_test.py
+python_classes = Test*
+python_functions = test_*
+addopts =
+    --verbose
+    --tb=short
+    --cov=app
+    --cov-report=html
+    --cov-report=term-missing
+    --cov-report=xml
+    --cov-fail-under=60
+    --timeout=300
+markers =
+    unit: Testes unitários
+    integration: Testes de integração
+    security: Testes de segurança
+    slow: Testes que demoram muito
+filterwarnings =
+    ignore::DeprecationWarning
+    ignore::PendingDeprecationWarning
+```
+
+### Fixtures obrigatórias
+```python
+# tests/conftest.py - Fixtures globais obrigatórias
+import pytest
+import tempfile
+from unittest.mock import Mock
+from typing import Dict, Any
+
+@pytest.fixture
+def temp_dir():
+    """Diretório temporário para testes"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yield tmpdir
+
+@pytest.fixture
+def mock_subprocess():
+    """Mock seguro do subprocess"""
+    with patch('subprocess.run') as mock_run:
+        mock_run.return_value = Mock(
+            returncode=0,
+            stdout='{"sites": {"github": {"status": "found"}}}',
+            stderr='',
+        )
+        yield mock_run
+
+@pytest.fixture
+def sample_maigret_result() -> Dict[str, Any]:
+    """Resultado exemplo do Maigret"""
+    return {
+        "sites": {
+            "GitHub": {
+                "status": "found",
+                "url": "https://github.com/testuser",
+                "response_time": 0.5
+            },
+            "Twitter": {
+                "status": "not_found",
+                "url": "https://twitter.com/testuser"
+            }
+        },
+        "search_stats": {
+            "total_sites": 2,
+            "found": 1,
+            "not_found": 1
+        }
+    }
+
+@pytest.fixture
+def valid_usernames():
+    """Usernames válidos para testes"""
+    return [
+        "user123",
+        "test.user",
+        "my-username",
+        "user_name",
+        "abc",
+        "a" * 50  # Máximo permitido
+    ]
+
+@pytest.fixture
+def malicious_inputs():
+    """Entradas maliciosas para testes de segurança"""
+    return [
+        "user; ls -la",
+        "user && cat /etc/passwd",
+        "user || echo 'hacked'",
+        "user | grep secret",
+        "user `whoami`",
+        "user $(id)",
+        "user; rm -rf /",
+        "user && sudo su",
+        "user; chmod 777 *",
+        "../../../etc/passwd",
+        "<script>alert('xss')</script>",
+        "javascript:alert(1)",
+        "user'; DROP TABLE users;--",
+        'user" OR 1=1--',
+    ]
+```
+
+## 🧪 TESTES UNITÁRIOS OBRIGATÓRIOS
+
+### Testes de validação obrigatórios
+```python
+# tests/unit/test_validation.py
+import pytest
+from app import validate_username_secure
+
+class TestUsernameValidation:
+    """Testes obrigatórios de validação de username"""
+
+    def test_valid_usernames(self, valid_usernames):
+        """Testa usernames válidos - OBRIGATÓRIO"""
+        for username in valid_usernames:
+            result = validate_username_secure(username)
+            assert result == username
+
+    def test_invalid_lengths(self):
+        """Testa usernames com tamanho inválido - OBRIGATÓRIO"""
+        # Muito curtos
+        with pytest.raises(ValueError, match="entre 3 e 50 caracteres"):
+            validate_username_secure("ab")
+
+        # Muito longos
+        with pytest.raises(ValueError, match="entre 3 e 50 caracteres"):
+            validate_username_secure("a" * 51)
+
+    def test_invalid_characters(self):
+        """Testa caracteres não permitidos - OBRIGATÓRIO"""
+        invalid_usernames = [
+            "user@domain.com",  # @
+            "user space",       # espaço
+            "user/path",        # /
+            "user\\path",       # \\
+            "user#hash",        # #
+            "user%percent",     # %
+            "user&and",         # &
+        ]
+
+        for username in invalid_usernames:
+            with pytest.raises(ValueError, match="Caracteres não permitidos"):
+                validate_username_secure(username)
+
+    def test_command_injection_attempts(self, malicious_inputs):
+        """Testa tentativas de injeção de comandos - CRÍTICO"""
+        for malicious in malicious_inputs:
+            with pytest.raises(ValueError):
+                validate_username_secure(malicious)
+
+    @pytest.mark.parametrize("invalid_input", [
+        None,           # None
+        123,            # int
+        [],             # list
+        {},             # dict
+        "",             # string vazia
+        "   ",          # só espaços
+    ])
+    def test_invalid_input_types(self, invalid_input):
+        """Testa tipos de entrada inválidos - OBRIGATÓRIO"""
+        with pytest.raises(ValueError):
+            validate_username_secure(invalid_input)
+```
+
+### Testes de segurança obrigatórios
+```python
+# tests/security/test_subprocess_security.py
+import pytest
+from unittest.mock import patch, Mock
+from app import run_maigret_secure
+
+class TestSubprocessSecurity:
+    """Testes de segurança de subprocess - CRÍTICOS"""
+
+    @patch('subprocess.run')
+    def test_secure_command_construction(self, mock_run):
+        """Testa construção segura do comando - OBRIGATÓRIO"""
+        mock_run.return_value = Mock(
+            returncode=0,
+            stdout='{"sites": {}}',
+            stderr=''
+        )
+
+        result = run_maigret_secure("testuser")
+
+        # Verificar que comando foi construído como lista
+        args, kwargs = mock_run.call_args
+        cmd = args[0]
+
+        assert isinstance(cmd, list)
+        assert cmd[0] == "maigret"
+        assert cmd[1] == "testuser"
+        assert "shell" not in kwargs or kwargs["shell"] is False
+
+    @patch('subprocess.run')
+    def test_parameter_sanitization(self, mock_run):
+        """Testa sanitização de parâmetros - OBRIGATÓRIO"""
+        mock_run.return_value = Mock(returncode=0, stdout='{}', stderr='')
+
+        result = run_maigret_secure(
+            username="testuser",
+            timeout_sec=60,
+            max_connections=25
+        )
+
+        # Verificar sanitização
+        args, kwargs = mock_run.call_args
+        cmd = args[0]
+
+        assert "60" in cmd      # timeout sanitizado
+        assert "25" in cmd      # connections sanitizado
+
+    def test_invalid_parameters(self):
+        """Testa parâmetros inválidos - OBRIGATÓRIO"""
+        # Timeout inválido
+        with pytest.raises(ValueError, match="Timeout deve estar"):
+            run_maigret_secure("testuser", timeout_sec=1000)
+
+        # Connections inválidas
+        with pytest.raises(ValueError, match="max_connections deve estar"):
+            run_maigret_secure("testuser", max_connections=500)
+
+    @patch('subprocess.run')
+    def test_environment_security(self, mock_run):
+        """Testa configuração segura do ambiente - OBRIGATÓRIO"""
+        mock_run.return_value = Mock(returncode=0, stdout='{}', stderr='')
+
+        run_maigret_secure("testuser")
+
+        args, kwargs = mock_run.call_args
+
+        # Verificar ambiente limitado
+        assert 'env' in kwargs
+        env = kwargs['env']
+        assert env['PATH'] == "/usr/local/bin:/usr/bin:/bin"
+        assert env['HOME'] == "/tmp"
+
+        # Verificar working directory seguro
+        assert kwargs.get('cwd') == "/tmp"
+```
+
+## 🔗 TESTES DE INTEGRAÇÃO OBRIGATÓRIOS
+
+### Testes da interface Streamlit
+```python
+# tests/integration/test_streamlit_app.py
+import pytest
+from streamlit.testing.v1 import AppTest
+from unittest.mock import patch, Mock
+
+class TestStreamlitIntegration:
+    """Testes de integração da interface - OBRIGATÓRIOS"""
+
+    def test_app_loads_successfully(self):
+        """Testa se a aplicação carrega sem erros - OBRIGATÓRIO"""
+        at = AppTest.from_file("app.py")
+        at.run()
+
+        # Verificar que não há exceções
+        assert not at.exception
+
+        # Verificar elementos básicos da UI
+        assert len(at.title) > 0  # Tem título
+        assert len(at.text_input) > 0  # Tem input de texto
+        assert len(at.button) > 0  # Tem botões
+
+    @patch('app.run_maigret_secure')
+    def test_search_functionality(self, mock_maigret):
+        """Testa funcionalidade de busca completa - OBRIGATÓRIO"""
+        # Configurar mock
+        mock_maigret.return_value = {
+            "success": True,
+            "returncode": 0,
+            "data": {
+                "sites": {
+                    "GitHub": {"status": "found", "url": "https://github.com/testuser"}
+                }
+            },
+            "sites_found": 1
+        }
+
+        at = AppTest.from_file("app.py")
+        at.run()
+
+        # Simular entrada de usuário
+        at.text_input[0].input("testuser").run()
+
+        # Clicar no botão de busca
+        search_button = None
+        for button in at.button:
+            if "Buscar" in button.label or "🔍" in button.label:
+                search_button = button
+                break
+
+        assert search_button is not None
+        search_button.click().run()
+
+        # Verificar que Maigret foi chamado
+        mock_maigret.assert_called_once()
+
+        # Verificar que não há exceções
+        assert not at.exception
+
+    @patch('app.run_maigret_secure')
+    def test_error_handling_in_ui(self, mock_maigret):
+        """Testa tratamento de erros na interface - OBRIGATÓRIO"""
+        # Configurar mock para simular erro
+        mock_maigret.side_effect = ValueError("Teste de erro")
+
+        at = AppTest.from_file("app.py")
+        at.run()
+
+        # Simular busca com erro
+        at.text_input[0].input("testuser").run()
+
+        # Clicar no botão de busca
+        for button in at.button:
+            if "Buscar" in button.label or "🔍" in button.label:
+                button.click().run()
+                break
+
+        # Verificar que erro foi tratado (não há exception não capturada)
+        assert not at.exception
+
+        # Verificar se há mensagem de erro na UI
+        error_found = any("erro" in str(element).lower() for element in at.error)
+        assert error_found
+```
+
+## 📊 COBERTURA MÍNIMA OBRIGATÓRIA
+
+### Meta de cobertura por componente
+```python
+# Cobertura mínima obrigatória por arquivo crítico
+COVERAGE_REQUIREMENTS = {
+    "app.py": 80,           # Arquivo principal - alta cobertura
+    "validation.py": 95,    # Segurança crítica - cobertura máxima
+    "security.py": 95,      # Segurança - cobertura máxima
+    "utils.py": 70,         # Utilitários - cobertura média
+}
+
+# Comando para verificar cobertura
+# pytest --cov=. --cov-report=term-missing --cov-fail-under=60
+```
+
+### Relatório de cobertura obrigatório
+```python
+# scripts/coverage_analysis.py - Análise obrigatória
+def analyze_coverage_xml(xml_path: str) -> dict:
+    """Analisa arquivo XML de cobertura - OBRIGATÓRIA"""
+
+    if not Path(xml_path).exists():
+        print(f"❌ Arquivo {xml_path} não encontrado")
+        return {}
+
+    # Análise detalhada obrigatória
+    # Implementar análise de linhas não cobertas
+    # Identificar funções críticas sem testes
+    pass
+
+def generate_coverage_report(coverage_data: dict) -> str:
+    """Gera relatório de cobertura em texto - OBRIGATÓRIA"""
+
+    # Relatório detalhado obrigatório
+    # Métricas por arquivo
+    # Linhas críticas não cobertas
+    # Recomendações para aumentar cobertura
+    pass
+```
+
+## 📋 CHECKLIST DE TESTES OBRIGATÓRIOS
+
+- [ ] Estrutura de testes criada
+- [ ] Testes unitários implementados (60%+ cobertura)
+- [ ] Testes de segurança implementados
+- [ ] Testes de integração implementados
+- [ ] Fixtures configuradas
+- [ ] CI/CD configurado para testes
+- [ ] Cobertura mínima atingida (60%)
+- [ ] Relatórios de cobertura gerados
+- [ ] Testes executados automaticamente

@@ -1,0 +1,138 @@
+---
+alwaysApply: true
+description: "Garantir execução segura de subprocess para prevenir injeção de comandos"
+---
+
+# 🔒 SEGURANÇA CRÍTICA: Subprocess Seguro
+
+## ❌ PRÁTICAS PROIBIDAS
+
+### Nunca usar `shell=True` com entrada de usuário
+```python
+# ❌ PERIGOSO - Permite injeção de comandos
+def run_command(user_input):
+    cmd = f"maigret {user_input} --json"  # String interpolation vulnerável
+    result = subprocess.run(cmd, shell=True)  # shell=True é perigoso
+    return result
+```
+
+### Nunca concatenar comandos com entrada de usuário
+```python
+# ❌ PERIGOSO - Injeção de comandos possível
+username = request.args.get('username')
+cmd = f"maigret {username} --timeout 30"  # Injeção possível
+```
+
+## ✅ PRÁTICAS OBRIGATÓRIAS
+
+### Sempre usar lista de argumentos
+```python
+# ✅ SEGURO - Lista de argumentos previne injeção
+import subprocess
+from typing import List, Optional
+
+def run_maigret_secure(
+    username: str,
+    timeout: int = 30,
+    max_sites: int = 500
+) -> dict:
+    """Execução segura do Maigret com validação completa"""
+
+    # 1. Validar entrada primeiro
+    clean_username = validate_username_secure(username)
+
+    # 2. Construir comando como lista (SEGURO)
+    cmd: List[str] = [
+        "maigret",
+        clean_username,
+        "--json", "simple",
+        "--timeout", str(timeout),
+        "--top-sites", str(max_sites)
+    ]
+
+    # 3. Configurar ambiente seguro
+    env = {
+        "PATH": "/usr/local/bin:/usr/bin:/bin",  # PATH limitado
+        "LANG": "C.UTF-8",
+        "HOME": "/tmp"
+    }
+
+    # 4. Executar SEM shell=True
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=timeout + 60,  # Buffer de segurança
+        check=False,
+        env=env,  # Ambiente seguro
+        cwd="/tmp"  # Working directory seguro
+    )
+
+    return {
+        "success": result.returncode == 0,
+        "returncode": result.returncode,
+        "stdout": result.stdout[:10000],  # Limitar tamanho
+        "stderr": result.stderr[:5000],   # Limitar tamanho
+    }
+```
+
+### Sempre validar entrada antes de usar em subprocess
+```python
+# ✅ SEGURO - Validação obrigatória
+def validate_username_secure(username: str) -> str:
+    """Validação robusta que previne injeção de comandos"""
+
+    if not isinstance(username, str):
+        raise ValueError("Username deve ser string")
+
+    if not username or not username.strip():
+        raise ValueError("Username não pode estar vazio")
+
+    username = username.strip()
+
+    # Verificar comprimento
+    if not (3 <= len(username) <= 50):
+        raise ValueError("Username deve ter entre 3 e 50 caracteres")
+
+    # Caracteres permitidos apenas
+    allowed_chars = set(string.ascii_letters + string.digits + '._-')
+    if not set(username).issubset(allowed_chars):
+        raise ValueError(f"Caracteres não permitidos detectados")
+
+    # Verificar padrões perigosos
+    dangerous_patterns = [
+        '&&', '||', ';', '|', '`', '$', '!',
+        '..', '/.', '\\.',
+        'rm ', 'sudo', 'chmod', 'chown', 'passwd',
+        "'", '"', '--', '/*', '*/',
+        '<script', '</script', 'javascript:', 'data:',
+    ]
+
+    username_lower = username.lower()
+    for pattern in dangerous_patterns:
+        if pattern in username_lower:
+            raise ValueError(f"Padrão proibido detectado: {pattern}")
+
+    return username
+```
+
+## 🚨 VERIFICAÇÕES AUTOMÁTICAS
+
+### Sempre verificar antes de executar
+- ✅ Entrada foi validada com `validate_username_secure()`
+- ✅ Comando é construído como lista, não string
+- ✅ `shell=True` NUNCA é usado
+- ✅ Timeout é definido
+- ✅ Ambiente é limitado
+- ✅ Working directory é seguro
+
+## 📋 CHECKLIST DE SEGURANÇA
+
+- [ ] Input sanitization implementada
+- [ ] Lista de argumentos usada (não string)
+- [ ] `shell=True` removido
+- [ ] Timeout configurado
+- [ ] Ambiente seguro definido
+- [ ] Working directory seguro
+- [ ] Testes de segurança implementados
+- [ ] Logging de segurança adicionado

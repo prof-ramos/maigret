@@ -1,0 +1,384 @@
+---
+alwaysApply: true
+description: "Práticas obrigatórias para desenvolvimento seguro com Streamlit"
+---
+
+# 🎨 STREAMLIT: PRÁTICAS OBRIGATÓRIAS
+
+## ❌ ANTI-PATTERNS PROIBIDOS
+
+### Uso inseguro de session_state
+```python
+# ❌ PERIGOSO - Acesso inseguro ao session_state
+def unsafe_function():
+    username = st.session_state.get('username')  # Pode falhar se for None
+    result = username.get('value')  # Erro se username não for dict
+
+    # Modificação direta sem validação
+    st.session_state.search_results = external_api_call(username)
+```
+
+### Tratamento inadequado de erros
+```python
+# ❌ PERIGOSO - Sem tratamento de erros
+def dangerous_search():
+    result = run_maigret(username)  # Pode falhar
+    st.write(result)  # Pode quebrar a UI se result for None
+```
+
+### Organização ruim de código
+```python
+# ❌ PERIGOSO - Tudo em uma função gigante
+def main():
+    # 500+ linhas de código misturado
+    # UI, lógica de negócio, validação, etc.
+    # Difícil de testar e manter
+    pass
+```
+
+## ✅ PRÁTICAS OBRIGATÓRIAS
+
+### Estrutura modular obrigatória
+```python
+# ✅ SEGURO - Estrutura modular obrigatória
+# app.py - Apenas interface e controle de fluxo
+# validation.py - Validações de segurança
+# maigret_service.py - Lógica de negócio
+# utils.py - Funções utilitárias
+
+# app.py
+import streamlit as st
+from validation import validate_username_secure, validate_and_display_username
+from maigret_service import run_maigret_search
+from ui_components import display_search_form, display_results
+
+def main():
+    """Função principal - apenas orquestração"""
+    init_session_state()
+
+    # Interface organizada por abas
+    tab1, tab2, tab3 = st.tabs(["🔍 Busca", "📊 Resultados", "⚙️ Configurações"])
+
+    with tab1:
+        handle_search_tab()
+
+    with tab2:
+        handle_results_tab()
+
+    with tab3:
+        handle_settings_tab()
+
+def handle_search_tab():
+    """Aba de busca - lógica isolada"""
+    st.markdown("## 🔍 Buscar Perfis")
+
+    # Formulário de busca
+    username = st.text_input("Username para investigar:")
+
+    # Validação em tempo real
+    if username:
+        is_valid, clean_username, error_msg = validate_and_display_username(username)
+        if not is_valid:
+            st.error(f"❌ {error_msg}")
+            return
+
+    # Botão de busca
+    if st.button("🚀 Iniciar Investigação"):
+        if username:
+            perform_search(clean_username)
+
+def perform_search(username: str):
+    """Executa busca de forma segura"""
+    try:
+        with st.spinner("🔍 Executando busca..."):
+            result = run_maigret_search(username)
+
+        if result['success']:
+            st.success("✅ Busca concluída!")
+            st.session_state.current_results = result
+            st.rerun()  # Recarregar para mostrar resultados
+        else:
+            st.error(f"❌ Erro: {result.get('error', 'Erro desconhecido')}")
+
+    except Exception as e:
+        st.error(f"❌ Erro inesperado: {str(e)}")
+        logging.error(f"Search error: {e}")
+```
+
+### Session state seguro obrigatório
+```python
+# ✅ SEGURO - Session state com validação obrigatória
+def init_session_state():
+    """Inicialização segura do session state"""
+
+    # Estado de busca
+    if 'search_history' not in st.session_state:
+        st.session_state.search_history = []
+
+    if 'current_results' not in st.session_state:
+        st.session_state.current_results = None
+
+    if 'search_in_progress' not in st.session_state:
+        st.session_state.search_in_progress = False
+
+    # Configurações com valores padrão seguros
+    defaults = {
+        'timeout': 30,
+        'max_sites': 100,
+        'max_connections': 50,
+        'debug_mode': False
+    }
+
+    for key, default_value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = default_value
+
+def safe_get_session_value(key: str, default=None):
+    """Obtém valor do session_state de forma segura"""
+    try:
+        return st.session_state.get(key, default)
+    except Exception:
+        return default
+
+def safe_set_session_value(key: str, value):
+    """Define valor do session_state de forma segura"""
+    try:
+        st.session_state[key] = value
+    except Exception as e:
+        st.error(f"Erro ao salvar configuração: {e}")
+```
+
+### Tratamento robusto de erros obrigatório
+```python
+# ✅ SEGURO - Tratamento de erros obrigatório
+import logging
+from typing import Optional, Dict, Any
+
+def handle_search_with_error_management():
+    """Gerencia busca com tratamento robusto de erros"""
+
+    # Container para mensagens de erro
+    error_container = st.container()
+
+    try:
+        # Validação de entrada
+        username = st.text_input("Username:")
+        if not username:
+            return
+
+        is_valid, clean_username, error_msg = validate_and_display_username(username)
+        if not is_valid:
+            with error_container:
+                st.error(f"❌ {error_msg}")
+            return
+
+        # Configuração de busca
+        config = get_search_config()
+
+        # Execução com timeout e tratamento de erros
+        with st.spinner("🔍 Executando busca..."):
+            result = run_maigret_secure(
+                username=clean_username,
+                timeout_sec=config['timeout'],
+                max_sites=config['max_sites']
+            )
+
+        # Processamento do resultado
+        if result.get('success'):
+            display_success_results(result)
+        else:
+            with error_container:
+                st.error(f"❌ Busca falhou: {result.get('error', 'Erro desconhecido')}")
+
+    except ValueError as e:
+        with error_container:
+            st.error(f"❌ Erro de validação: {str(e)}")
+        logging.warning(f"Validation error: {e}")
+
+    except subprocess.TimeoutExpired:
+        with error_container:
+            st.error("❌ Timeout: Busca demorou muito tempo")
+            st.info("💡 Tente reduzir o número de sites ou aumentar o timeout")
+        logging.error("Search timeout")
+
+    except Exception as e:
+        with error_container:
+            st.error("❌ Erro inesperado durante a busca")
+        logging.error(f"Unexpected error: {e}")
+
+        # Modo debug opcional
+        if st.session_state.get('debug_mode'):
+            with st.expander("🔧 Detalhes técnicos"):
+                st.exception(e)
+
+def display_success_results(result: Dict[str, Any]):
+    """Exibe resultados de forma segura"""
+
+    # Validação do resultado
+    if not isinstance(result, dict):
+        st.error("❌ Formato de resultado inválido")
+        return
+
+    # Métricas seguras
+    sites_found = result.get('sites_found', 0)
+    total_sites = result.get('total_sites', 0)
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Sites Verificados", total_sites)
+    with col2:
+        st.metric("Perfis Encontrados", sites_found)
+    with col3:
+        success_rate = (sites_found / total_sites * 100) if total_sites > 0 else 0
+        st.metric("Taxa de Sucesso", f"{success_rate:.1f}%")
+
+    # Exibição segura dos dados
+    processed_results = result.get('processed_results', [])
+    if processed_results:
+        display_results_table(processed_results)
+```
+
+### Componentes reutilizáveis obrigatórios
+```python
+# ✅ SEGURO - Componentes reutilizáveis obrigatórios
+# ui_components.py
+
+def display_search_form() -> Optional[str]:
+    """Componente de formulário de busca reutilizável"""
+
+    st.markdown("### 🔍 Investigar Username")
+
+    # Input com validação
+    username = st.text_input(
+        "Username para investigar:",
+        placeholder="Ex: usuario123",
+        help="Digite o username que deseja investigar"
+    )
+
+    # Validação em tempo real
+    if username:
+        is_valid, clean_username, error_msg = validate_and_display_username(username)
+        if is_valid:
+            st.success(f"✅ Username válido: `{clean_username}`")
+            return clean_username
+        else:
+            st.error(f"❌ {error_msg}")
+
+    return None
+
+def display_results_table(results: list):
+    """Componente de tabela de resultados reutilizável"""
+
+    if not results:
+        st.info("Nenhum resultado encontrado")
+        return
+
+    # Preparar dados para exibição
+    df_data = []
+    for result in results:
+        if isinstance(result, dict):
+            df_data.append({
+                'Plataforma': result.get('nome', 'N/A'),
+                'URL': result.get('url', 'N/A'),
+                'Status': result.get('status', 'N/A'),
+                'Confiabilidade': result.get('confiabilidade', 0)
+            })
+
+    if df_data:
+        import pandas as pd
+        df = pd.DataFrame(df_data)
+
+        st.dataframe(
+            df,
+            column_config={
+                "URL": st.column_config.LinkColumn("URL"),
+                "Confiabilidade": st.column_config.ProgressColumn(
+                    "Confiabilidade (%)",
+                    min_value=0,
+                    max_value=100,
+                ),
+            },
+            hide_index=True
+        )
+
+def display_config_sidebar():
+    """Componente de configuração na sidebar"""
+
+    with st.sidebar:
+        st.markdown("### ⚙️ Configurações de Busca")
+
+        # Timeout
+        timeout = st.slider(
+            "Timeout por site (segundos):",
+            min_value=5,
+            max_value=60,
+            value=st.session_state.get('timeout', 30),
+            help="Tempo máximo de espera por site"
+        )
+
+        # Máximo de sites
+        max_sites = st.selectbox(
+            "Máximo de sites:",
+            options=[10, 25, 50, 100, 500],
+            index=2,
+            help="Número máximo de sites para verificar"
+        )
+
+        # Atualizar session_state
+        st.session_state.timeout = timeout
+        st.session_state.max_sites = max_sites
+
+        return {
+            'timeout': timeout,
+            'max_sites': max_sites
+        }
+```
+
+### Logging obrigatório
+```python
+# ✅ SEGURO - Logging obrigatório
+import logging
+import sys
+
+def setup_logging():
+    """Configuração obrigatória de logging"""
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler('app.log')
+        ]
+    )
+
+    # Logger específico da aplicação
+    logger = logging.getLogger('maigret_app')
+    return logger
+
+# Uso obrigatório em todas as operações críticas
+logger = setup_logging()
+
+def log_search_operation(username: str, operation: str, success: bool, **kwargs):
+    """Logging obrigatório de operações de busca"""
+
+    if success:
+        logger.info(f"✅ {operation} successful for username: {username}")
+    else:
+        logger.error(f"❌ {operation} failed for username: {username}")
+
+    # Log de parâmetros (sem dados sensíveis)
+    safe_params = {k: v for k, v in kwargs.items() if k not in ['password', 'token']}
+    logger.debug(f"Parameters: {safe_params}")
+```
+
+## 📋 CHECKLIST STREAMLIT OBRIGATÓRIO
+
+- [ ] Código organizado em módulos separados
+- [ ] Session state inicializado corretamente
+- [ ] Tratamento robusto de erros implementado
+- [ ] Validação de entrada em tempo real
+- [ ] Componentes reutilizáveis criados
+- [ ] Logging configurado e usado
+- [ ] Testes da interface implementados
+- [ ] Modo debug opcional disponível

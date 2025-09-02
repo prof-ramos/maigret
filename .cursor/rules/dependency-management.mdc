@@ -1,0 +1,325 @@
+---
+alwaysApply: true
+description: "Gerenciamento seguro de dependências Python usando uv"
+---
+
+# 📦 GERENCIAMENTO SEGURO DE DEPENDÊNCIAS
+
+## ❌ PRÁTICAS PROIBIDAS
+
+### Nunca usar pip diretamente
+```bash
+# ❌ PERIGOSO - Nunca use pip diretamente
+pip install package-name
+pip install -r requirements.txt
+pip freeze > requirements.txt
+
+# ❌ PERIGOSO - Nunca use poetry ou pip-tools
+poetry add package-name
+pip-compile requirements.in
+```
+
+### Instalações sem verificação de segurança
+```bash
+# ❌ PERIGOSO - Sem verificação de vulnerabilidades
+uv add insecure-package  # Sem verificar CVEs
+```
+
+## ✅ PRÁTICAS OBRIGATÓRIAS COM UV
+
+### Comandos uv obrigatórios
+```bash
+# ✅ OBRIGATÓRIO - Adicionar dependências
+uv add package-name
+uv add package-name==1.2.3  # Versão específica
+uv add package-name --dev   # Dependência de desenvolvimento
+
+# ✅ OBRIGATÓRIO - Remover dependências
+uv remove package-name
+
+# ✅ OBRIGATÓRIO - Sincronizar dependências
+uv sync  # Instala tudo do uv.lock
+
+# ✅ OBRIGATÓRIO - Atualizar dependências
+uv lock --upgrade  # Atualiza versões
+uv sync            # Aplica mudanças
+
+# ✅ OBRIGATÓRIO - Executar scripts
+uv run script.py
+uv run pytest
+uv run mypy
+```
+
+### Scripts com dependências inline
+```python
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "requests>=2.31.0",
+#     "click>=8.1.0",
+#     "rich>=13.7.0",
+# ]
+# ///
+
+#!/usr/bin/env python3
+"""
+Script com dependências gerenciadas por uv
+"""
+
+import requests
+from rich.console import Console
+
+def main():
+    console = Console()
+    console.print("[bold green]Script executado com sucesso![/bold green]")
+
+if __name__ == "__main__":
+    main()
+```
+
+### Gerenciamento de scripts com uv
+```bash
+# ✅ OBRIGATÓRIO - Gerenciar dependências de scripts
+uv add requests --script my_script.py
+uv remove requests --script my_script.py
+uv sync --script my_script.py
+
+# ✅ OBRIGATÓRIO - Executar scripts com dependências
+uv run my_script.py
+```
+
+## 🔒 VERIFICAÇÃO DE SEGURANÇA OBRIGATÓRIA
+
+### Auditoria de dependências obrigatória
+```bash
+# ✅ OBRIGATÓRIO - Verificar vulnerabilidades antes de adicionar
+uv add --dry-run package-name  # Preview das mudanças
+
+# ✅ OBRIGATÓRIO - Verificar vulnerabilidades existentes
+uv run safety check  # Executar verificação de segurança
+
+# ✅ OBRIGATÓRIO - Atualizar dependências vulneráveis
+uv lock --upgrade-package requests  # Atualizar pacote específico
+uv sync  # Aplicar mudanças
+```
+
+### Monitoramento de dependências críticas
+```python
+# scripts/audit_dependencies.py
+#!/usr/bin/env python3
+"""
+Auditoria obrigatória de dependências de segurança
+"""
+
+import subprocess
+import json
+from pathlib import Path
+from typing import Dict, List, Any
+
+def check_vulnerabilities() -> Dict[str, Any]:
+    """Verifica vulnerabilidades usando safety"""
+    try:
+        result = subprocess.run(
+            ["uv", "run", "safety", "check", "--json"],
+            capture_output=True,
+            text=True,
+            cwd=Path(__file__).parent.parent
+        )
+
+        if result.returncode == 0:
+            return {"vulnerabilities": [], "status": "safe"}
+        else:
+            data = json.loads(result.stdout)
+            return {
+                "vulnerabilities": data.get("vulnerabilities", []),
+                "status": "vulnerable"
+            }
+    except Exception as e:
+        return {"error": str(e), "status": "error"}
+
+def check_outdated_packages() -> Dict[str, Any]:
+    """Verifica pacotes desatualizados"""
+    try:
+        result = subprocess.run(
+            ["uv", "lock", "--check-updates"],
+            capture_output=True,
+            text=True,
+            cwd=Path(__file__).parent.parent
+        )
+
+        # Parse da saída para identificar pacotes desatualizados
+        outdated = []
+        if "would be updated" in result.stdout:
+            # Implementar parsing da saída
+            pass
+
+        return {"outdated": outdated, "status": "checked"}
+    except Exception as e:
+        return {"error": str(e), "status": "error"}
+
+def generate_security_report() -> str:
+    """Gera relatório de segurança das dependências"""
+
+    vulnerabilities = check_vulnerabilities()
+    outdated = check_outdated_packages()
+
+    report = []
+    report.append("# 🔒 RELATÓRIO DE SEGURANÇA DE DEPENDÊNCIAS")
+    report.append("")
+
+    # Vulnerabilidades
+    if vulnerabilities["status"] == "safe":
+        report.append("✅ **Nenhuma vulnerabilidade conhecida encontrada**")
+    else:
+        vulns = vulnerabilities.get("vulnerabilities", [])
+        report.append(f"🚨 **{len(vulns)} vulnerabilidades encontradas**")
+
+        for vuln in vulns[:10]:  # Limitar a 10
+            report.append(f"  - {vuln.get('package_name', 'Unknown')}: {vuln.get('vulnerability_id', 'Unknown')}")
+
+    # Pacotes desatualizados
+    if outdated["status"] == "checked":
+        outdated_pkgs = outdated.get("outdated", [])
+        if outdated_pkgs:
+            report.append(f"📦 **{len(outdated_pkgs)} pacotes desatualizados**")
+        else:
+            report.append("✅ **Todos os pacotes estão atualizados**")
+
+    return "\n".join(report)
+
+if __name__ == "__main__":
+    print(generate_security_report())
+```
+
+## 📋 ATUALIZAÇÃO SEGURA DE DEPENDÊNCIAS
+
+### Processo de atualização obrigatório
+```bash
+# ✅ OBRIGATÓRIO - Processo de atualização segura
+
+# 1. Verificar vulnerabilidades atuais
+uv run safety check
+
+# 2. Verificar pacotes desatualizados
+uv lock --check-updates
+
+# 3. Fazer backup do lock atual
+cp uv.lock uv.lock.backup
+
+# 4. Atualizar dependências críticas
+uv lock --upgrade-package requests
+uv lock --upgrade-package urllib3
+
+# 5. Executar testes
+uv run pytest
+
+# 6. Verificar vulnerabilidades após atualização
+uv run safety check
+
+# 7. Aplicar mudanças se tudo OK
+uv sync
+```
+
+### Dependências críticas a monitorar
+```python
+# Lista de dependências críticas que precisam de monitoramento
+CRITICAL_DEPENDENCIES = {
+    "requests": ">=2.31.0",      # Para evitar vulnerabilidades HTTP
+    "urllib3": ">=1.26.18",      # Para evitar vulnerabilidades SSL
+    "cryptography": ">=41.0.0",  # Para criptografia segura
+    "jinja2": ">=3.1.0",         # Para evitar XSS em templates
+    "werkzeug": ">=2.3.0",       # Para segurança web
+    "flask": ">=2.3.0",          # Se usado
+    "django": ">=4.2.0",         # Se usado
+    "sqlalchemy": ">=2.0.0",     # Se usado
+}
+
+# Verificação automática
+def check_critical_versions():
+    """Verifica se versões críticas estão atualizadas"""
+    import pkg_resources
+
+    issues = []
+    for package, min_version in CRITICAL_DEPENDENCIES.items():
+        try:
+            installed = pkg_resources.get_distribution(package).version
+            if pkg_resources.parse_version(installed) < pkg_resources.parse_version(min_version):
+                issues.append(f"{package}: {installed} < {min_version}")
+        except pkg_resources.DistributionNotFound:
+            pass  # Pacote não instalado
+
+    return issues
+```
+
+## 🔄 WORKFLOWS DE CI/CD
+
+### GitHub Actions obrigatório
+```yaml
+# .github/workflows/dependency-security.yml
+name: Dependency Security Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Executar semanalmente
+    - cron: '0 0 * * 1'
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout código
+      uses: actions/checkout@v4
+
+    - name: Setup uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Install Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: uv sync
+
+    - name: Run security audit
+      run: uv run safety check --json --output security-report.json
+
+    - name: Check for critical vulnerabilities
+      run: |
+        if [ -f security-report.json ]; then
+          vulnerabilities=$(jq '.vulnerabilities | length' security-report.json)
+          if [ "$vulnerabilities" -gt 0 ]; then
+            echo "🚨 $vulnerabilities vulnerabilities found"
+            jq '.vulnerabilities[] | "- \(.package_name): \(.vulnerability_id)"' security-report.json
+            exit 1
+          else
+            echo "✅ No critical vulnerabilities found"
+          fi
+        fi
+
+    - name: Upload security report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-report
+        path: security-report.json
+```
+
+## 📋 CHECKLIST DE DEPENDÊNCIAS
+
+- [ ] uv usado exclusivamente para gerenciamento
+- [ ] Nunca pip, poetry ou pip-tools diretamente
+- [ ] Dependências verificadas por vulnerabilidades
+- [ ] Scripts usam dependências inline quando apropriado
+- [ ] Atualizações de segurança aplicadas regularmente
+- [ ] CI/CD verifica vulnerabilidades automaticamente
+- [ ] Backup do uv.lock feito antes de mudanças
+- [ ] Testes executados após atualizações
+- [ ] Relatórios de segurança gerados automaticamente
