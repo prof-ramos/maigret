@@ -30,7 +30,27 @@ st.set_page_config(
     page_title="Maigret OSINT - Ferramenta de Investigação",
     page_icon="🕵️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Get Help': 'https://github.com/prof-ramos/maigret',
+        'Report a bug': 'https://github.com/prof-ramos/maigret/issues',
+        'About': '''
+        ## 🕵️ Maigret OSINT Interface
+
+        Interface web segura para investigação OSINT usando Maigret.
+
+        ### Desenvolvido com:
+        - Streamlit
+        - Python 3.11+
+        - Maigret OSINT Tool
+
+        ### Segurança:
+        - Validação robusta de entrada
+        - Proteção contra injeção de comandos
+        - Ambiente isolado
+        - Logging estruturado
+        '''
+    }
 )
 
 # CSS personalizado para design responsivo
@@ -431,18 +451,53 @@ def get_available_tags():
     except Exception:
         return ["social", "photo", "music", "business", "gaming"]
 
+def check_maigret_installation():
+    """Verifica se o Maigret está instalado e funcionando"""
+    try:
+        result = subprocess.run(
+            ["maigret", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        if result.returncode == 0:
+            version = result.stdout.strip()
+            return True, version
+        else:
+            return False, f"Erro ao executar Maigret: {result.stderr}"
+    except FileNotFoundError:
+        return False, "Maigret não encontrado. Instale com: pip install maigret"
+    except subprocess.TimeoutExpired:
+        return False, "Timeout ao verificar Maigret"
+    except Exception as e:
+        return False, f"Erro inesperado: {str(e)}"
+
 def main():
     init_session_state()
-    
+
+    # Verificar instalação do Maigret
+    maigret_ok, maigret_message = check_maigret_installation()
+    if not maigret_ok:
+        st.error(f"❌ Problema com Maigret: {maigret_message}")
+        st.warning("💡 Instale o Maigret antes de usar a aplicação")
+        st.stop()
+
     # Cabeçalho principal
     st.markdown('<div class="main-header">🕵️ Maigret OSINT - Investigação de Perfis</div>', unsafe_allow_html=True)
     
     # Sidebar com informações
     with st.sidebar:
         st.markdown("### 📋 Sobre o Maigret")
+
+        # Status do Maigret
+        if maigret_ok:
+            st.success(f"✅ Maigret instalado: {maigret_message}")
+        else:
+            st.error(f"❌ Problema: {maigret_message}")
+
         st.markdown("""
-        O Maigret é uma poderosa ferramenta OSINT (Open Source Intelligence) 
-        que permite coletar informações sobre uma pessoa através do nome de usuário 
+        O Maigret é uma poderosa ferramenta OSINT (Open Source Intelligence)
+        que permite coletar informações sobre uma pessoa através do nome de usuário
         em mais de 3.000 sites diferentes.
         """)
         
